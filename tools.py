@@ -5,11 +5,13 @@ from azure.core.credentials import AzureKeyCredential
 import os
 import logging
 from dotenv import load_dotenv, find_dotenv
+import json
 
 load_dotenv(find_dotenv())
 
+
 def search_index(queries: list[str]) -> list[dict]:
-    TOP = 1
+    TOP = 2
 
     final_results = {}
 
@@ -50,17 +52,20 @@ def search_index(queries: list[str]) -> list[dict]:
                     and result["@search.reranker_score"] >= 2.5
                 ):
                     chunk_to_store = {
-                        "Chunks": [result["Chunk"]],
-                        # "Figures": result["ChunkFigures"],
+                        "Title": result["Title"],
+                        "Chunk": result["Chunk"],
+                        "Figures": result["ChunkFigures"],
                     }
                     final_results[result["ChunkId"]] = chunk_to_store
 
             logging.info("Results: %s", results)
 
-    return final_results.values()
+    return json.dumps(final_results)
+
 
 def single_term_search_index(query: str) -> list[dict]:
     return search_index([query])
+
 
 RAT_SEARCH_INDEX_TOOL = FunctionTool(
     search_index,
