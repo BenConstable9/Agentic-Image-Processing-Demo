@@ -6,12 +6,13 @@ import os
 import logging
 from dotenv import load_dotenv, find_dotenv
 import json
+import base64
 
 load_dotenv(find_dotenv())
 
-
+FIGURE_AND_CHUNK_PAIRS = {}
 def search_index(queries: list[str]) -> list[dict]:
-    TOP = 2
+    TOP = 4
 
     final_results = {}
 
@@ -53,10 +54,20 @@ def search_index(queries: list[str]) -> list[dict]:
                 ):
                     chunk_to_store = {
                         "Title": result["Title"],
-                        "Chunk": result["Chunk"],
-                        "Figures": result["ChunkFigures"],
+                        "Chunk": result["Chunk"]
                     }
                     final_results[result["ChunkId"]] = chunk_to_store
+
+                    if result["ChunkId"] not in FIGURE_AND_CHUNK_PAIRS:
+                        FIGURE_AND_CHUNK_PAIRS[result["ChunkId"]] = {}
+
+                    # Store the figures for later
+                    for figure in result["ChunkFigures"]:
+                        for figure in result["ChunkFigures"]:
+                            # Convert the base64 image to a bytes object.
+                            image_data = base64.b64decode(figure["Data"])
+
+                            FIGURE_AND_CHUNK_PAIRS[result["ChunkId"]][figure["FigureId"]] = image_data
 
             logging.info("Results: %s", results)
 
