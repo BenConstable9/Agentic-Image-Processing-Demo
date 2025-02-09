@@ -19,10 +19,10 @@ from tools import FIGURE_AND_CHUNK_PAIRS
 
 def remove_markdown_formatting(text: str) -> str:
     """Remove Markdown formatting from text.
-    
+
     Args:
         text (str): Text to remove formatting from.
-        
+
     Returns:
         str: Text with formatting removed."""
     # Remove bold and italic markers while keeping the text inside
@@ -49,16 +49,20 @@ def remove_markdown_formatting(text: str) -> str:
 
     return text
 
-def get_figures_from_chunk(text:str, chunk_id: str=None) -> tuple[str, list[cl.Image]]:
+
+def get_figures_from_chunk(
+    text: str, chunk_id: str = None
+) -> tuple[str, list[cl.Image]]:
     """Extract figures from a chunk of text and load them into the assistant.
-    
+
     Args:
         text (str): Text to extract figures from.
         chunk_id (str, optional): Chunk ID to extract figures for. Defaults to None.
-        
+
     Returns:
-        tuple[str, list[cl.Image]]: Tuple containing the cleaned text and a list of images."""
-    
+        tuple[str, list[cl.Image]]: Tuple containing the cleaned text and a list of images.
+    """
+
     if chunk_id is None:
         # Regex pattern to extract figure chunk_id and figure_id
         pattern = r"<figure\s+chunk_id='(.*?)'\s+figure_id='(.*?)'>"
@@ -74,7 +78,10 @@ def get_figures_from_chunk(text:str, chunk_id: str=None) -> tuple[str, list[cl.I
     image_retrievals = []
 
     for figure_id, chunk_id in figure_dict.items():
-        if chunk_id in FIGURE_AND_CHUNK_PAIRS and figure_id in FIGURE_AND_CHUNK_PAIRS[chunk_id]:
+        if (
+            chunk_id in FIGURE_AND_CHUNK_PAIRS
+            and figure_id in FIGURE_AND_CHUNK_PAIRS[chunk_id]
+        ):
             image_data = FIGURE_AND_CHUNK_PAIRS[chunk_id][figure_id]
             image = cl.Image(
                 content=image_data,
@@ -86,6 +93,7 @@ def get_figures_from_chunk(text:str, chunk_id: str=None) -> tuple[str, list[cl.I
     cleaned_text = re.sub(r"<figure\s+[^>]*>", "", text)
 
     return cleaned_text, image_retrievals
+
 
 @cl.on_chat_start  # type: ignore
 async def start_chat() -> None:
@@ -115,10 +123,18 @@ async def handle_agent_update(settings: dict):
 @cl.set_starters  # type: ignore
 async def set_starts() -> List[cl.Starter]:
     """Set the starters for the chat.
-    
+
     Returns:
         List[cl.Starter]: List of starters."""
     return [
+        cl.Starter(
+            label="What priority areas will have the most impact on the business and it's stakeholders?",
+            message="What priority areas will have the most impact on the business and it's stakeholders?",
+        ),
+        cl.Starter(
+            label="How does Shein audit suppliers?",
+            message="How does Shein audit suppliers?",
+        ),
         cl.Starter(
             label="How is Shein innovating?",
             message="How is Shein innovating?",
@@ -126,10 +142,6 @@ async def set_starts() -> List[cl.Starter]:
         cl.Starter(
             label="How does Shein enforce compliance throughput the supply chain?",
             message="How does Shein enforce compliance throughput the supply chain?",
-        ),
-        cl.Starter(
-            label="What are the priority areas for Shein?",
-            message="What are the priority areas for Shein?",
         ),
         cl.Starter(
             label="What is Shein doing to be more sustainable?",
@@ -141,7 +153,7 @@ async def set_starts() -> List[cl.Starter]:
 @cl.on_message  # type: ignore
 async def chat(message: cl.Message) -> None:
     """Handle the chat messages and populate the UI if needed.
-    
+
     Args:
         message (cl.Message): Message to handle."""
     # Get the team from the user session.
@@ -189,12 +201,12 @@ async def chat(message: cl.Message) -> None:
             try:
                 results = json.loads(ai_search_results)
 
-                retrieval_message = (
-                    f"**Research Agent ({agent}):**\n\nRetrieved the following information:"
-                )
+                retrieval_message = f"**Research Agent ({agent}):**\n\nRetrieved the following information:"
                 image_retrievals = []
                 for chunk_id, result in results.items():
-                    cleaned_text, chunk_image_retrievals = get_figures_from_chunk(result["Chunk"], chunk_id=chunk_id)
+                    cleaned_text, chunk_image_retrievals = get_figures_from_chunk(
+                        result["Chunk"], chunk_id=chunk_id
+                    )
 
                     image_retrievals.extend(chunk_image_retrievals)
 
@@ -227,7 +239,9 @@ async def chat(message: cl.Message) -> None:
             author = msg.source
 
             if author in ["answer_agent", "revise_answer_agent"]:
-                printable_author = "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
+                printable_author = (
+                    "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
+                )
 
                 text = msg.content
 

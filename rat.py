@@ -29,7 +29,7 @@ revise_research_agent = AssistantAgent(
     tools=[RAT_DEPTH_SEARCH_INDEX_TOOL],
     model_client=GPT_4O_MINI_MODEL,
     description="A research agent that can help you find information.",
-    system_message="You are a senior research agent specialising in company based research for a financial services company. Take the user's query, initial response and answer, then formulate a series of new search terms to to retrieve additional information from the Azure Search index. Carefully think about what additional information might be useful to the question and retreive it. You must execute a tool call to the search index. DO NOT USE YOUR INTERNAL KNOWLEDGE. Send a minimum of 5 new search terms to the search index to retrieve the relevant information. YOU MUST REQUEST A TOOL CALL.",
+    system_message="You are a senior research agent specialising in company based research for a financial services company. Take the user's query, initial response and answer, then formulate a series of new search terms to to retrieve additional information from the Azure Search index. Carefully think about what additional information might be useful to the question and retreive it. The search terms should be based on the original information received, what you think is missing and how the user's original question can be enhanced. You must execute a tool call to the search index. DO NOT USE YOUR INTERNAL KNOWLEDGE. Send a minimum of 5 new search terms to the search index to retrieve the relevant information. YOU MUST REQUEST A TOOL CALL.",
     # model_client_stream=True,
 )
 
@@ -54,6 +54,8 @@ def agent_selector(messages):
     # Handle transition after query rewriting
     elif current_agent == "research_agent":
         decision = "answer_agent"
+    elif current_agent == "answer_agent":
+        decision = "revise_research_agent"
     elif current_agent == "revise_research_agent":
         decision = "revise_answer_agent"
 

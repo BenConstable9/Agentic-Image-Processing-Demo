@@ -11,6 +11,8 @@ import base64
 load_dotenv(find_dotenv())
 
 FIGURE_AND_CHUNK_PAIRS = {}
+
+
 def search_index(queries: list[str], top) -> list[dict]:
 
     final_results = {}
@@ -53,7 +55,7 @@ def search_index(queries: list[str], top) -> list[dict]:
                 ):
                     chunk_to_store = {
                         "Title": result["Title"],
-                        "Chunk": result["Chunk"]
+                        "Chunk": result["Chunk"],
                     }
                     final_results[result["ChunkId"]] = chunk_to_store
 
@@ -66,7 +68,9 @@ def search_index(queries: list[str], top) -> list[dict]:
                             # Convert the base64 image to a bytes object.
                             image_data = base64.b64decode(figure["Data"])
 
-                            FIGURE_AND_CHUNK_PAIRS[result["ChunkId"]][figure["FigureId"]] = image_data
+                            FIGURE_AND_CHUNK_PAIRS[result["ChunkId"]][
+                                figure["FigureId"]
+                            ] = image_data
 
             logging.info("Results: %s", results)
 
@@ -77,9 +81,11 @@ def rag_search_index(search_term: str) -> list[dict]:
     """Search the Azure Search index for the given query."""
     return search_index([search_term], top=4)
 
+
 def rat_search_index_breadth_first(search_terms: list[str]) -> list[dict]:
     """Search the Azure Search index for the given set of queries."""
     return search_index(search_terms, top=1)
+
 
 def rat_search_index_depth_first(search_terms: list[str]) -> list[dict]:
     """Search the Azure Search index for the given set of queries."""
