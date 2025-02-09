@@ -180,7 +180,7 @@ async def chat(message: cl.Message) -> None:
 
                 if extracted_search_terms is not None:
                     await cl.Message(
-                        content=f"**Research Agent:**\n\nSearching AI Search with: *'{extracted_search_terms}'*"
+                        content=f"**Research Agent ({agent}):**\n\nSearching AI Search with: *'{extracted_search_terms}'*"
                     ).send()
             except json.JSONDecodeError:
                 pass
@@ -191,7 +191,7 @@ async def chat(message: cl.Message) -> None:
                 results = json.loads(ai_search_results)
 
                 retrieval_message = (
-                    "**Research Agent:**\n\nRetrieved the following information:"
+                    "**Research Agent ({agent}):**\n\nRetrieved the following information:"
                 )
                 image_retrievals = []
                 for chunk_id, result in results.items():
@@ -228,7 +228,7 @@ async def chat(message: cl.Message) -> None:
             author = msg.source
 
             if author in ["answer_agent", "revise_answer_agent"]:
-                printable_author = "**" + author.replace("_", " ").title() + ":**\n\n"
+                printable_author = "**" + author.replace("_", " ").title() + " ({agent}):**\n\n"
 
                 text = msg.content
 
