@@ -91,9 +91,6 @@ def get_figures_from_chunk(text:str, chunk_id: str=None) -> tuple[str, list[cl.I
 async def start_chat() -> None:
     """Start the chat and set the assistant agent in the user session."""
     # Set the assistant agent in the user session.
-    cl.user_session.set("prompt_history", "")  # type: ignore
-    cl.user_session.set("rag_agent", RAG_GROUP_CHAT)  # type: ignore
-    cl.user_session.set("rat_agent", RAT_GROUP_CHAT)  # type: ignore
 
     settings = await cl.ChatSettings(
         [
@@ -151,15 +148,17 @@ async def chat(message: cl.Message) -> None:
     agent = cl.user_session.get("agent")  # type: ignore
 
     if agent == "RAG Agent":
-        team = cast(SelectorGroupChat, cl.user_session.get("rag_agent"))  # type: ignore
+        team = RAG_GROUP_CHAT
     elif agent == "RAT Agent":
-        team = cast(SelectorGroupChat, cl.user_session.get("rat_agent"))  # type: ignore
+        team = RAT_GROUP_CHAT
     else:
         return
 
     # Streaming response message.
     streaming_response: cl.Message | None = None
     # Stream the messages from the team.
+    # Rest the team
+
     async for msg in team.run_stream(
         task=[TextMessage(content=message.content, source="user")],
         cancellation_token=CancellationToken(),
@@ -173,10 +172,10 @@ async def chat(message: cl.Message) -> None:
                 args = json.loads(search_terms)
 
                 extracted_search_terms = None
-                if "query" in args:
-                    extracted_search_terms = args["query"]
-                elif "queries" in args:
-                    extracted_search_terms = ", ".join(args["queries"])
+                if "search_term" in args:
+                    extracted_search_terms = args["search_term"]
+                elif "search_terms" in args:
+                    extracted_search_terms = ", ".join(args["search_terms"])
 
                 if extracted_search_terms is not None:
                     await cl.Message(
@@ -191,7 +190,7 @@ async def chat(message: cl.Message) -> None:
                 results = json.loads(ai_search_results)
 
                 retrieval_message = (
-                    "**Research Agent ({agent}):**\n\nRetrieved the following information:"
+                    f"**Research Agent ({agent}):**\n\nRetrieved the following information:"
                 )
                 image_retrievals = []
                 for chunk_id, result in results.items():
@@ -208,7 +207,7 @@ async def chat(message: cl.Message) -> None:
                 await cl.Message(
                     content=retrieval_message, elements=image_retrievals
                 ).send()
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 pass
         elif isinstance(msg, ModelClientStreamingChunkEvent):
             # Stream the model client response to the user.
@@ -228,7 +227,7 @@ async def chat(message: cl.Message) -> None:
             author = msg.source
 
             if author in ["answer_agent", "revise_answer_agent"]:
-                printable_author = "**" + author.replace("_", " ").title() + " ({agent}):**\n\n"
+                printable_author = "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
 
                 text = msg.content
 
@@ -239,3 +238,5 @@ async def chat(message: cl.Message) -> None:
         else:
             # Skip all other message types.
             pass
+
+    await team.reset()

@@ -51,8 +51,8 @@ def agent_selector(messages):
 ## Group Chat Manager
 RAG_GROUP_CHAT = SelectorGroupChat(
     [research_agent, answer_agent],
-    termination_condition=MaxMessageTermination(15)
-    | SourceMatchTermination("answer_agent"),
+    termination_condition=SourceMatchTermination(sources=["answer_agent"])
+    | MaxMessageTermination(15),
     model_client=GPT_4O_MINI_MODEL,
     selector_func=agent_selector,
 )
