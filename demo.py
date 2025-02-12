@@ -65,7 +65,7 @@ def get_figures_from_chunk(
 
     if chunk_id is None:
         # Regex pattern to extract figure chunk_id and figure_id
-        pattern = r"<figure\s+chunk_id='(.*?)'\s+figure_id='(.*?)'>"
+        pattern = r"<figure\s+ChunkId='(.*?)'\s+FigureId='(.*?)'>"
 
         # Find all matches and convert to dictionary
         figure_dict = {match[1]: match[0] for match in re.findall(pattern, text)}
@@ -170,6 +170,7 @@ async def chat(message: cl.Message) -> None:
     streaming_response: cl.Message | None = None
     # Stream the messages from the team.
     # Rest the team
+    last_chunk_is_image = False
 
     async for msg in team.run_stream(
         task=[TextMessage(content=message.content, source="user")],
@@ -223,19 +224,30 @@ async def chat(message: cl.Message) -> None:
                 pass
         elif isinstance(msg, ModelClientStreamingChunkEvent):
             # Stream the model client response to the user.
-            if streaming_response is None:
-                # Start a new streaming response.
-                streaming_response = cl.Message(content="", author=msg.source)
-            await streaming_response.stream_token(msg.content)
-        elif streaming_response is not None:
-            # Done streaming the model client response.
-            # We can skip the current message as it is just the complete message
-            # of the streaming response.
-            await streaming_response.send()
-            # Reset the streaming response so we won't enter this block again
-            # until the next streaming response is complete.
-            streaming_response = None
-        elif isinstance(msg, TextMessage):
+            author = msg.source
+
+            if author in ["answer_agent", "revise_answer_agent"]:
+                if streaming_response is None:
+                    # Start a new streaming response.
+                    streaming_response = cl.Message(content="", author=msg.source)
+
+                    # Stream the printable author
+                    printable_author = (
+                        "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
+                    )
+                    await streaming_response.stream_token(printable_author)
+
+                    await streaming_response.stream_token(msg.content)
+
+                else:
+                    if "<" in msg.content:
+                        last_chunk_is_image = True
+                        # Split content up to <figure
+                        content_split = msg.content.split("<")[0]
+                        await streaming_response.stream_token(content_split)
+                    elif last_chunk_is_image is False:
+                        await streaming_response.stream_token(msg.content)
+        elif (streaming_response is not None and isinstance(msg, TextMessage)) or isinstance(msg, TextMessage):
             author = msg.source
 
             if author in ["answer_agent", "revise_answer_agent"]:
@@ -243,11 +255,20 @@ async def chat(message: cl.Message) -> None:
                     "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
                 )
 
-                text = msg.content
+                clean_text, image_retrievals = get_figures_from_chunk(msg.content)
+                cleaned_content = printable_author + clean_text
+                
+                if streaming_response is not None:
+                    last_chunk_is_image = False
+                    streaming_response.content = cleaned_content
 
-                clean_text, image_retrievals = get_figures_from_chunk(text)
-                content = printable_author + clean_text
-                await cl.Message(content=content, elements=image_retrievals).send()
+                    await streaming_response.send()
+                    streaming_response = None
+                    if len(image_retrievals) > 0:
+                        await cl.Message(content="", elements=image_retrievals).send()
+                else:
+                    await cl.Message(content=cleaned_content, elements=image_retrievals).send()
+
 
         else:
             # Skip all other message types.
