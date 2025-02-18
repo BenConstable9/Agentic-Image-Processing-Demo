@@ -1,4 +1,4 @@
-from typing import List, cast
+from typing import List
 import json
 import chainlit as cl
 from autogen_agentchat.messages import (
@@ -8,13 +8,12 @@ from autogen_agentchat.messages import (
     ToolCallExecutionEvent,
     TextMessage,
 )
-from autogen_agentchat.teams import SelectorGroupChat
 from autogen_core import CancellationToken
-from rag import RAG_GROUP_CHAT
-from rat import RAT_GROUP_CHAT
+from rag import Rag
+from rat import Rat
 import re
 from chainlit.input_widget import Select
-from tools import FIGURE_AND_CHUNK_PAIRS
+from figure_processing import get_figures_from_chunk
 
 
 def remove_markdown_formatting(text: str) -> str:
@@ -50,51 +49,6 @@ def remove_markdown_formatting(text: str) -> str:
     return text
 
 
-def get_figures_from_chunk(
-    text: str, chunk_id: str = None
-) -> tuple[str, list[cl.Image]]:
-    """Extract figures from a chunk of text and load them into the assistant.
-
-    Args:
-        text (str): Text to extract figures from.
-        chunk_id (str, optional): Chunk ID to extract figures for. Defaults to None.
-
-    Returns:
-        tuple[str, list[cl.Image]]: Tuple containing the cleaned text and a list of images.
-    """
-
-    if chunk_id is None:
-        # Regex pattern to extract figure chunk_id and figure_id
-        pattern = r"<figure\s+ChunkId='(.*?)'\s+FigureId='(.*?)'>"
-
-        # Find all matches and convert to dictionary
-        figure_dict = {match[1]: match[0] for match in re.findall(pattern, text)}
-    else:
-        figure_ids = re.findall(r"FigureId='(.*?)'", text)
-
-        figure_dict = {figure_id: chunk_id for figure_id in figure_ids}
-
-    # Replace all figure placeholders with the actual image
-    image_retrievals = []
-
-    for figure_id, chunk_id in figure_dict.items():
-        if (
-            chunk_id in FIGURE_AND_CHUNK_PAIRS
-            and figure_id in FIGURE_AND_CHUNK_PAIRS[chunk_id]
-        ):
-            image_data = FIGURE_AND_CHUNK_PAIRS[chunk_id][figure_id]
-            image = cl.Image(
-                content=image_data,
-                name=f"Figure {figure_id}",
-                display="inline",
-            )
-            image_retrievals.append(image)
-
-    cleaned_text = re.sub(r"<figure\s+[^>]*>", "", text)
-
-    return cleaned_text, image_retrievals
-
-
 @cl.on_chat_start  # type: ignore
 async def start_chat() -> None:
     """Start the chat and set the assistant agent in the user session."""
@@ -128,12 +82,12 @@ async def set_starts() -> List[cl.Starter]:
         List[cl.Starter]: List of starters."""
     return [
         cl.Starter(
-            label="What priority areas will have the most impact on the business and it's stakeholders?",
-            message="What priority areas will have the most impact on the business and it's stakeholders?",
+            label="What is the approach for sustainability?",
+            message="What is the approach for sustainability?",
         ),
         cl.Starter(
-            label="How does Shein audit suppliers?",
-            message="How does Shein audit suppliers?",
+            label="What priority areas will have the most impact on the business and it's stakeholders?",
+            message="What priority areas will have the most impact on the business and it's stakeholders?",
         ),
         cl.Starter(
             label="How is Shein innovating?",
@@ -160,9 +114,9 @@ async def chat(message: cl.Message) -> None:
     agent = cl.user_session.get("agent")  # type: ignore
 
     if agent == "RAG Agent":
-        team = RAG_GROUP_CHAT
+        team = Rag()
     elif agent == "RAT Agent":
-        team = RAT_GROUP_CHAT
+        team = Rat()
     else:
         return
 
@@ -172,7 +126,7 @@ async def chat(message: cl.Message) -> None:
     # Rest the team
     last_chunk_is_image = False
 
-    async for msg in team.run_stream(
+    async for msg in team.group_chat.run_stream(
         task=[TextMessage(content=message.content, source="user")],
         cancellation_token=CancellationToken(),
     ):
@@ -206,7 +160,7 @@ async def chat(message: cl.Message) -> None:
                 image_retrievals = []
                 for chunk_id, result in results.items():
                     cleaned_text, chunk_image_retrievals = get_figures_from_chunk(
-                        result["Chunk"], chunk_id=chunk_id
+                        team.figure_and_chunk_pairs, result["Chunk"], chunk_id=chunk_id
                     )
 
                     image_retrievals.extend(chunk_image_retrievals)
@@ -247,7 +201,9 @@ async def chat(message: cl.Message) -> None:
                         await streaming_response.stream_token(content_split)
                     elif last_chunk_is_image is False:
                         await streaming_response.stream_token(msg.content)
-        elif (streaming_response is not None and isinstance(msg, TextMessage)) or isinstance(msg, TextMessage):
+        elif (
+            streaming_response is not None and isinstance(msg, TextMessage)
+        ) or isinstance(msg, TextMessage):
             author = msg.source
 
             if author in ["answer_agent", "revise_answer_agent"]:
@@ -255,9 +211,11 @@ async def chat(message: cl.Message) -> None:
                     "**" + author.replace("_", " ").title() + f" ({agent}):**\n\n"
                 )
 
-                clean_text, image_retrievals = get_figures_from_chunk(msg.content)
+                clean_text, image_retrievals = get_figures_from_chunk(
+                    team.figure_and_chunk_pairs, msg.content
+                )
                 cleaned_content = printable_author + clean_text
-                
+
                 if streaming_response is not None:
                     last_chunk_is_image = False
                     streaming_response.content = cleaned_content
@@ -267,11 +225,10 @@ async def chat(message: cl.Message) -> None:
                     if len(image_retrievals) > 0:
                         await cl.Message(content="", elements=image_retrievals).send()
                 else:
-                    await cl.Message(content=cleaned_content, elements=image_retrievals).send()
-
+                    await cl.Message(
+                        content=cleaned_content, elements=image_retrievals
+                    ).send()
 
         else:
             # Skip all other message types.
             pass
-
-    await team.reset()
